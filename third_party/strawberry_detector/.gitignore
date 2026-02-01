@@ -1,0 +1,30 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Model checkpoints
+checkpoints/
+*.pth
+*.pt
+
+# Depth-Anything repo (cloned at runtime)
+Depth-Anything-V2/
+
+# Output files
+*.json
+output/
+results/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Virtual environments
+venv/
+env/
+.env

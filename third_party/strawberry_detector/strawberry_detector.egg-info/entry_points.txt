@@ -1,0 +1,2 @@
+[console_scripts]
+strawberry-detect = strawberry_detector.__main__:main

@@ -1,3 +1,5 @@
+[![CI](https://github.com/pavelkuz001/strawberry-nav-3d/actions/workflows/ci.yml/badge.svg)](https://github.com/pavelkuz001/strawberry-nav-3d/actions/workflows/ci.yml)
+
 # strawberry-nav-3d
 
 Pipeline: strawberry detection + depth -> 3D voxel map -> 3D A* path -> simple speed controller.

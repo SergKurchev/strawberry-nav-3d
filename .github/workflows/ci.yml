@@ -1,0 +1,31 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r third_party/strawberry_detector/requirements.txt
+          pip install -e third_party/strawberry_detector
+
+      - name: Compile (no runtime downloads)
+        run: |
+          python -m compileall -q src third_party/strawberry_detector/strawberry_detector
+
+      - name: Import smoke
+        run: |
+          python -c "import strawberry_detector; import src; print('imports OK')"
+          python -m strawberry_detector --help | head -n 5

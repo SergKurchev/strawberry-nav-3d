@@ -11,3 +11,6 @@ third_party/strawberry_detector/checkpoints/
 third_party/strawberry_detector/Depth-Anything-V2/
 
 .DS_Store
+
+# auto-downloaded depth model repo
+third_party/strawberry_detector/Depth-Anything-V2/

@@ -32,6 +32,7 @@ class Sim2DConfig:
     # --- Target selection / stopping / slowdown ---
     TARGET_SELECTION: str = "closest"   # "closest" for closest_strawberry_id
     STOP_RADIUS_M: float = 0.20         # stop at 20 cm from berry center
+    STOP_EPS_M: float = 1e-3  # numeric tolerance for stop boundary (1mm)
     SLOWDOWN_START_M: float = 0.50      # start braking 50 cm before stop point
     DISTANCE_METRIC: str = "euclid_3d"  # "euclid_3d" or "xy_2d"
 

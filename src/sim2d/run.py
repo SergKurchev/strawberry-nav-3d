@@ -7,6 +7,7 @@ from typing import Optional, Tuple
 import numpy as np
 
 from src.sim2d.config import Sim2DConfig, K_from_cfg
+from src.sim2d.motor_math import limit_vw
 from src.sim2d.geometry import pixel_depth_to_cam_xyz
 from src.sim2d.frames import cam_xyz_to_robot_xy, robot_xy_to_world_xy
 from src.sim2d.detector_sim import world_from_detector_json, simulate_detector_json
@@ -132,12 +133,12 @@ def integrate_pose(pose: np.ndarray, cmd: WheelCmd, dt: float, cfg: Sim2DConfig)
 # Controller + FSM
 # ----------------------------
 
-def compute_control_to_goal(pose: np.ndarray, goal_xy: np.ndarray, v_prev: float, cfg: Sim2DConfig) -> Tuple[float, float, float]:
+def compute_control_to_goal(pose: np.ndarray, goal_xy: np.ndarray, cfg: Sim2DConfig) -> Tuple[float, float]:
     """
-    Returns (v_cmd, w_cmd, v_next_smoothed)
+    Returns desired (v_des, w_des) without motor/acc limiting.
+    Motor-like limiting is applied later via limit_vw(...).
     - linear slowdown starts at cfg.SLOWDOWN_START_M
-    - stop at cfg.STOP_RADIUS_M
-    - accel limited by cfg.MAX_A
+    - stop boundary at cfg.STOP_RADIUS_M
     """
     x, y, th = float(pose[0]), float(pose[1]), float(pose[2])
     gx, gy = float(goal_xy[0]), float(goal_xy[1])
@@ -153,7 +154,6 @@ def compute_control_to_goal(pose: np.ndarray, goal_xy: np.ndarray, v_prev: float
     d_err = max(0.0, dist - stop_r)
 
     v_max = float(cfg.MAX_V)
-    a_max = float(cfg.MAX_A)
 
     # desired linear speed (linear ramp down inside slowdown zone)
     if d_err >= slow_r:
@@ -161,25 +161,15 @@ def compute_control_to_goal(pose: np.ndarray, goal_xy: np.ndarray, v_prev: float
     else:
         v_des = v_max * (d_err / max(1e-6, slow_r))
 
-    # accel limit
-    dv = clamp(v_des - v_prev, -a_max / max(1e-6, float(cfg.CONTROL_RATE_HZ)), a_max / max(1e-6, float(cfg.CONTROL_RATE_HZ)))
-    v_cmd = clamp(v_prev + dv, 0.0, v_max)
-
     # heading control
     ang_to_goal = math.atan2(dy, dx)
     ang_err = wrap_pi(ang_to_goal - th)
 
     k_ang = 2.0
-    w_max = 2.0
-    w_cmd = clamp(k_ang * ang_err, -w_max, w_max)
+    w_max = float(getattr(cfg, "MAX_W", 0.8))
+    w_des = clamp(k_ang * ang_err, -w_max, w_max)
 
-    return v_cmd, w_cmd, v_cmd
-
-
-# ----------------------------
-# Main loop
-# ----------------------------
-
+    return v_des, w_des
 def run(args) -> int:
     cfg = Sim2DConfig()
     K = K_from_cfg(cfg)
@@ -205,6 +195,7 @@ def run(args) -> int:
     last_det = None
     state = "SEARCH"
     v_prev = 0.0
+    w_prev = 0.0
     wheel_cmd = WheelCmd(0.0, 0.0)
 
     # visualization (optional)
@@ -262,8 +253,10 @@ def run(args) -> int:
 
             if state == "SEARCH":
                 if obs is None:
-                    # rotate in place
-                    v_cmd, w_cmd = 0.0, 0.8
+                    # rotate in place (motor-like limits)
+                    v_des, w_des = 0.0, float(getattr(cfg, 'SEARCH_W', 0.8))
+                    v_cmd, w_cmd = limit_vw(v_des, w_des, v_prev, w_prev, dt=ctrl_period, cfg=cfg)
+                    v_prev, w_prev = v_cmd, w_cmd
                     wheel_cmd = vw_to_wheels(v_cmd, w_cmd, cfg)
                 else:
                     state = "APPROACH"
@@ -286,8 +279,11 @@ def run(args) -> int:
                     if dist <= float(cfg.STOP_RADIUS_M) + float(cfg.STOP_EPS_M):
                         state = "STOP"
                         wheel_cmd = WheelCmd(0.0, 0.0)
+                        v_prev, w_prev = 0.0, 0.0
                     else:
-                        v_cmd, w_cmd, v_prev = compute_control_to_goal(pose, goal_xy, v_prev, cfg)
+                        v_des, w_des = compute_control_to_goal(pose, goal_xy, cfg)
+                        v_cmd, w_cmd = limit_vw(v_des, w_des, v_prev, w_prev, dt=ctrl_period, cfg=cfg)
+                        v_prev, w_prev = v_cmd, w_cmd
                         wheel_cmd = vw_to_wheels(v_cmd, w_cmd, cfg)
 
             if state == "STOP":

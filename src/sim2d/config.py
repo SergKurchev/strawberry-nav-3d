@@ -51,6 +51,8 @@ class Sim2DConfig:
     # Velocity/accel limits (match your current style)
     MAX_V: float = 0.40                 # m/s
     MAX_A: float = 0.60                 # m/s^2
+    MAX_W: float = 0.8             # max angular speed (rad/s)
+    MAX_W_ACC: float = 1.6         # max angular accel (rad/s^2)
 
     # --- Odometry / differential drive defaults (tunable) ---
     WHEEL_BASE_M: float = 0.23          # distance between wheels (m)

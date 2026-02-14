@@ -7,7 +7,7 @@ from typing import Optional, Tuple
 import numpy as np
 
 from src.sim2d.config import Sim2DConfig, K_from_cfg
-from src.sim2d.motor_backend import SimMotorBackend
+from src.sim2d.motor_backend import make_motor_backend
 from src.sim2d.geometry import pixel_depth_to_cam_xyz
 from src.sim2d.frames import cam_xyz_to_robot_xy, robot_xy_to_world_xy
 from src.sim2d.detector_sim import world_from_detector_json, simulate_detector_json
@@ -172,12 +172,15 @@ def compute_control_to_goal(pose: np.ndarray, goal_xy: np.ndarray, cfg: Sim2DCon
     return v_des, w_des
 def run(args) -> int:
     cfg = Sim2DConfig()
+    if getattr(args, "motor_backend", None):
+        cfg.MOTOR_BACKEND = str(args.motor_backend)
     K = K_from_cfg(cfg)
 
     pose = np.array([0.0, 0.0, 0.0], dtype=np.float32)
     pose0 = pose.copy()
 
-    backend = SimMotorBackend(cfg)
+    backend = make_motor_backend(cfg)
+    print(f"motor_backend={cfg.MOTOR_BACKEND}")
 
     world = world_from_detector_json(args.json, K, pose0)
 
@@ -332,6 +335,7 @@ def main():
     ap.add_argument("--json", required=True, help="Path to detector json (e.g. results/strawberries_sample.json)")
     ap.add_argument("--steps", type=int, default=3000, help="Max sim steps")
     ap.add_argument("--headless", action="store_true", help="Run without visualization")
+    ap.add_argument("--motor-backend", default=None, help="Override cfg.MOTOR_BACKEND (math/raw/ros-stub)")
     args = ap.parse_args()
     raise SystemExit(run(args))
 

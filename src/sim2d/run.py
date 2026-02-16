@@ -165,8 +165,10 @@ def compute_control_to_goal(pose: np.ndarray, goal_xy: np.ndarray, cfg: Sim2DCon
     ang_to_goal = math.atan2(dy, dx)
     ang_err = wrap_pi(ang_to_goal - th)
 
-    k_ang = 2.0
+    k_ang = float(getattr(cfg, "K_ANG", 2.0))
+
     w_max = float(getattr(cfg, "MAX_W", 0.8))
+
     w_des = clamp(k_ang * ang_err, -w_max, w_max)
 
     return v_des, w_des
@@ -183,6 +185,7 @@ def run(args) -> int:
     print(f"motor_backend={cfg.MOTOR_BACKEND}")
 
     world = world_from_detector_json(args.json, K, pose0)
+    pose[2] = float(getattr(args, "init_theta", 0.0))
 
     # detector timing
     det_period = 1.0 / max(1e-6, float(cfg.DETECTOR_RATE_HZ))
@@ -326,7 +329,26 @@ def run(args) -> int:
         if state == "STOP":
             break
 
+    # save figure if requested
+
+    if viz and getattr(args, "save_fig", ""):
+
+        from pathlib import Path
+
+        outp = Path(args.save_fig)
+
+        outp.parent.mkdir(parents=True, exist_ok=True)
+
+        fig.savefig(str(outp), dpi=150, bbox_inches="tight")
+
+        print(f"saved_figure={outp}")
+
+
     print(f"DONE: steps={steps}, t={t:0.2f}s, state={state}, pose={pose}")
+    if viz and getattr(args, "keep_open", False):
+        import matplotlib.pyplot as plt
+        plt.ioff()
+        plt.show()
     return 0
 
 
@@ -335,6 +357,9 @@ def main():
     ap.add_argument("--json", required=True, help="Path to detector json (e.g. results/strawberries_sample.json)")
     ap.add_argument("--steps", type=int, default=3000, help="Max sim steps")
     ap.add_argument("--headless", action="store_true", help="Run without visualization")
+    ap.add_argument("--keep-open", action="store_true", help="Keep matplotlib window open after finish")
+    ap.add_argument("--save-fig", default="", help="Save final matplotlib figure to path (e.g. results/sim2d.png)")
+    ap.add_argument("--init-theta", type=float, default=0.0, help="Initial robot heading (rad)")
     ap.add_argument("--motor-backend", default=None, help="Override cfg.MOTOR_BACKEND (math/raw/ros-stub)")
     args = ap.parse_args()
     raise SystemExit(run(args))

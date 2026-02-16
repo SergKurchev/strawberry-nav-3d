@@ -2,66 +2,75 @@
 
 # strawberry-nav-3d
 
-Prototype pipeline (per tech spec): **strawberry detection + depth → 3D voxel map → 3D A\* path → waypoints → simple speed controller**.
+Prototype pipeline: **strawberry detection + depth → 3D goal → (optionally) 3D planning → motion control**.
 
-Key idea: the repo stays clean after `git clone`. Large assets (weights, Depth-Anything-V2 repo) are stored in a **per-user cache** (cross-platform), not committed to git.
+Ключевая идея: репозиторий остаётся “чистым” после `git clone`. Тяжёлые ассеты (веса моделей и т.п.) **не коммитятся**, а лежат в **пользовательском кэше** и скачиваются при первом запуске.
 
 ---
 
 ## What is implemented (per Tech Spec)
 
-### ✅ 1) “git clone → run”
-- Repository can be cloned normally (`git clone`).
-- Heavy assets are not tracked by git (ignored) and are downloaded on demand.
+### ✅ A) Detector + depth (from `strawberry_detector`)
+- Берём ближайшую ягоду по `closest_strawberry_id`
+- Используем данные: `bbox.center_x`, `bbox.center_y`, `depth.center_meters`
+- Генерируются артефакты: `*.json`, `*_depth.npy`, маски, визуализация.
 
-### ✅ 2) Strawberry detector + depth estimation
-- CLI tool: `python -m strawberry_detector`
-- Outputs: `*.json`, `*_depth.npy`, `*_masks_combined.npy`, individual masks, visualization image.
-- First run downloads:
-  - Depth-Anything-V2 repository
-  - Depth weights
-  - YOLO weights
+### ✅ B) Pixel → metric (camera intrinsics)
+Перевод из пиксельных координат (u,v) в метрические (X,Y,Z) относительно камеры:
+- `fx = fy = 886.81`, `cx = cy = 512.0` (при 1024×1024)
+- `X = (u - cx)/fx * Z`
+- `Y = (v - cy)/fy * Z`
+- `Z = depth.center_meters`
 
-### ✅ 3) 3D planning & approach
-- Build voxel occupancy from depth.
-- Run **3D A\*** on voxel grid.
-- Convert path to **waypoints** in camera frame.
-- Follow waypoints with a simple speed controller (slows down near goal).
-- Two entrypoints:
-  - `python -m src.main` — main pipeline run (reads detector outputs from `results/`)
-  - `python -m src.loop` — loop-based simulation of waypoint following (optional)
+### ✅ C) Sim2D top-down autonomous demo (по ТЗ)
+В `src/sim2d` реализован автономный сценарий “вид сверху”:
+- Робот = точка + направление (pose: x,y,theta)
+- Цели = ягоды из detector JSON
+- Есть цикл, который:
+  - обновляет “наблюдение” от детектора с частотой и задержкой
+  - пересчитывает цель из (u,v,depth) → world goal
+  - обновляет позу робота по одометрии (интеграция команд)
+- FSM: **SEARCH → APPROACH → STOP**
+  - SEARCH: вращение на месте до появления цели
+  - APPROACH: движение к цели
+  - STOP: остановка на расстоянии **0.20 m**
+- Плавность: торможение начинается за **0.50 m** до стоп-границы
 
-### ✅ 4) Cross-platform caching of models
-- Uses `platformdirs` to store large files in user cache directory.
-- No model weights are committed to git.
+### ✅ D) “Motor backend” abstraction (задел под ROS)
+Навигация вызывает слой “моторов” через backend:
+- `math` — лимитер скорости/ускорения (pure python)
+- `raw` — прямой passthrough (debug)
+- `ros` — заглушка (пока как `math`)
+- `runbot` — если доступен файл `src_motors_gamepad/.../vel_acc_constraint.py`, использует именно его; иначе падает обратно на pure python
 
-### ✅ 5) CI smoke test (Ubuntu)
-- GitHub Actions checks: install deps, compile, import smoke.
+> Сейчас ROS-связи нет: в симуляции используем математику (как и договаривались), но архитектура оставляет место для ROS-реализации без переписывания логики.
+
+### ✅ E) CI smoke test (Ubuntu)
+GitHub Actions: install deps → compile → import smoke.
 
 ---
 
-## Repo structure
+## Repo structure (важное)
 
 - `src/`
-  - `main.py` — end-to-end demo: load results → goal point → voxel map → A* → follow
-  - `loop.py` — loop simulation runner
-  - `core/vision.py` — goal point from results (camera frame), approximate intrinsics (for demo)
-  - `core/map3d.py` — voxel map build + index conversions
-  - `core/astar3d.py` — 3D A* implementation
-  - `core/controller.py` — simple speed control + waypoint following
+  - `main.py` — pipeline demo (детектор → цель → дальнейшая логика)
+  - `loop.py` — loop-раннер (опционально)
+  - `sim2d/` — **TЗ demo: top-down симуляция + FSM + геометрия + motor backend**
 - `third_party/strawberry_detector/`
-  - packaged detector module (installed editable)
+  - детектор (устанавливается editable)
 - `results/`
-  - local outputs (ignored by git)
+  - локальные выходные файлы (игнорируются git)
 
 ---
 
 ## Quick start (CPU)
 
 ### 0) Prerequisites
-- Python 3.9+ (3.10/3.11 also OK)
+- Python 3.9+  
 - `git`
-- Internet access for first model download
+- Интернет для первого скачивания весов
+
+> Warning `NotOpenSSLWarning (LibreSSL ...)` в macOS может появляться — это **не ошибка** (если всё запускается).
 
 ### 1) Clone + venv
 ```bash
@@ -69,6 +78,5 @@ git clone https://github.com/pavelkuz001/strawberry-nav-3d.git
 cd strawberry-nav-3d
 
 python -m venv .venv
-source .venv/bin/activate   # Linux/macOS
+source .venv/bin/activate   # macOS/Linux
 # .venv\Scripts\activate    # Windows PowerShell
-

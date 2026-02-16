@@ -22,3 +22,6 @@ third_party/strawberry_detector/checkpoints/
 # local motor package dump (not tracked)
 src_motors_gamepad/
 src_motors_gamepad.zip
+
+# local backups
+README.md.bak

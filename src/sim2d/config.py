@@ -53,6 +53,8 @@ class Sim2DConfig:
     MAX_A: float = 0.60                 # m/s^2
     MAX_W: float = 0.8             # max angular speed (rad/s)
     MAX_W_ACC: float = 1.6         # max angular accel (rad/s^2)
+    SEARCH_W: float = 0.8            # rad/s, rotation speed in SEARCH
+    K_ANG: float = 2.0               # heading P gain for APPROACH
 
     # --- Odometry / differential drive defaults (tunable) ---
     WHEEL_BASE_M: float = 0.23          # distance between wheels (m)
